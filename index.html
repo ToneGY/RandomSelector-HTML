@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+	<title>随机点名</title>
+	<script type="text/javascript" src="./js/xlsx.core.min.js" async></script>
+<style>
+
+
+body {
+	font-family: Arial, sans-serif;
+	background-image: url("./1.jpg");
+	background-color: #fff;
+	width: 100%;
+	background-repeat: repeat-x;
+	background-size:30%  100%;
+}
+
+.container {
+	margin: 0 auto;
+	max-width: 1000px;
+	padding: 20px;
+	text-align: center;
+	background-color: #fbfbfbf7;
+	border: 1px solid #ccc;
+	border-radius: 5px;
+}
+
+h1 {
+	margin-top: 0;
+}
+
+button {
+	font-size: 18px;
+	padding: 10px 20px;
+	background-color: #008CBA;
+	color: #fff;
+	border-radius: 5px;
+	border: none;
+	cursor: pointer;
+}
+
+.button-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.begin{
+	background-color: #0183ae;
+}
+
+#refresh-button{
+	background-color: #008CBA;
+}
+#way-button{
+	background-color: #029ccf;
+}
+
+.one-line{
+	display: flex;
+	justify-content:center;
+	gap: 50px;
+	margin-top: 50px;
+}
+
+.info, .file{
+	flex-grow: 1;
+	padding: 20px;
+	background-color: #fefeff;
+	border-radius: 5px;
+	box-shadow: 0px 0px 10px #ccc;
+	background-image: url(./1.gif);
+}
+
+
+.file{
+	cursor: pointer;
+	overflow: hidden; /* 当文件名过长时隐藏过长部分 */
+	text-overflow: ellipsis; /* 当文件名过长时显示省略号 */
+	white-space: nowrap; /* 当文件名过长时不换行 */
+}
+
+.file.dragover {
+	background-color: #e0e0e0; /* 拖拽时背景加深效果 */
+}
+
+.selected{
+	padding: 10px 20px;
+	background-color: #ba0000;
+	color: #fff;
+	border-radius: 5px;
+	border: none;
+}
+
+.selected:hover{
+	background-color: #630101;
+}
+
+#filename {
+	border-radius: 5px;
+	border: none;
+}
+
+
+h2 {
+	margin-top: 0;
+}
+
+footer {
+  text-align: center;
+  background-color: #fefeff;
+  padding: 10px;
+  font-size: 14px;
+  color: #666;
+  margin-top: 20px;
+  border-radius: 5px;
+  box-shadow: 0px 0px 10px #ccc;
+	background-image: url("./1.gif");
+
+}
+
+.list-container{
+	text-align: center;
+    border-radius: 5px;
+    background-color: #f7f7f7;
+    box-shadow: 0px 0px 10px #ccc;
+    margin-top: 30px;
+	padding: 20px;
+	padding-top: 10px;
+	display: flex;
+	flex-direction: row;
+	background-image: url(./1.gif);
+}
+
+.show-place{
+	margin-left: auto;
+	width: 100px;
+	margin-right: 1px;
+	flex-shrink: 0;
+}
+
+#selected-records {
+    height: 240px; /* 固定高度 */
+    display: grid;
+    overflow:auto;
+	grid-auto-columns: max-content;
+	grid-template-rows: repeat(6, 1fr);
+    grid-gap: 3px;
+
+
+
+    grid-auto-flow: column; /* 每行填满后换列 */
+}
+
+.index{
+	margin: 0;
+	padding: 0;
+}
+
+.history {
+    padding: 5px 10px;
+    background-color: #dcc903;
+    color: #fff;
+    border-radius: 5px;
+    margin-bottom: 5px;
+}
+
+</style>
+</head>
+<body>
+	<div class="container">
+		<h1>Random Person Selector</h1>
+		<div class="buttons-container">
+			<button id="select-button" class="begin">开始</button>
+			<button id="refresh-button">刷新</button>
+            <button id="way-button">重复</button>
+        </div>
+
+		<div class="one-line">
+			<div class="info">
+				<h2>Lucky Person</h2>
+				<p><span id="name"></span></p>
+			</div>
+			<div class="file" id="fileDropArea" onclick="document.getElementById('fileInput').click();" ondragover="handleDragOver(event);" ondrop="handleFileDrop(event);" ondragleave="handleDragLeave(event);">
+				<h2>File</h2>
+				<p><span id="filename">点击/拖拽此处以选择文件</span></p>
+				<input type="file" id="fileInput" style="display: none;" accept=".xlsx" onchange="handleFileSelect(event);">
+			</div>
+		</div>
+		
+
+		<div class="list-container">
+			<div id="selected-records">
+				<!-- 选中记录将在这里显示 -->
+			</div>
+			<div class="show-place">
+				<h3>可选：</h3><p id="canS">0</p>
+				<h3>已选：</h3><p id="hasS">0</p>
+			</div>
+		</div>
+		<footer>© 2024 Teacher wxm</footer>
+	</div>
+</body>
+
+<script language="javascript" type="text/javascript">
+
+	let refresh = document.getElementById('refresh-button')
+	let isfresh = true;
+
+	let way = document.getElementById('way-button')
+	let sole = false;
+
+	let button = document.getElementById('select-button')
+
+
+	let initialSpeed = 30;
+	let speed = 0;
+	let olddata = []
+	var data = [] // 以二进制流方式读取到的excel对象
+
+	let timer = null;
+	let canS = document.getElementById('canS')
+	let hasS = document.getElementById('hasS')
+
+
+
+	way.addEventListener("click", function(){
+		if(!isfresh){
+			alert("请先刷新")
+			return
+		}
+
+		if(sole){
+			sole = false;
+			way.textContent = "重复"
+			alert("选择可重复")
+		}else{
+			sole = true;
+			way.textContent = "唯一"
+			alert("选择唯一")
+		}
+	})
+	
+	refresh.addEventListener("click", function(){
+		if(isfresh) return;
+		if(button.textContent === "停止"){
+			return
+		}
+
+		isfresh = true;
+		data = [...olddata]
+		document.getElementById('name').innerHTML = ""
+		document.getElementById('name').classList.remove('selected')
+		canS.textContent = data.length;
+		hasS.textContent = 0
+		total = 0
+		selectedRecords.innerHTML = "";
+	})
+
+// ***********************文件读取
+
+	function receiveFile(file){
+		data = []
+		const filenameSpan = document.getElementById('filename');
+		filenameSpan.textContent = file.name;
+		filenameSpan.style.backgroundColor = '#109968'; // 背景加深效果
+		filenameSpan.style.padding = '10px 20px'; // 设置padding
+		filenameSpan.style.color = '#fff'
+
+		var reader = new FileReader();
+		reader.readAsBinaryString(file);
+		reader.onload = function(f){
+			var workbook = XLSX.read(f.target.result, {type: 'binary'});
+			
+			for(var sheet in workbook.Sheets){
+				if(workbook.Sheets.hasOwnProperty(sheet)){
+					data = data.concat(XLSX.utils.sheet_to_json(workbook.Sheets[sheet]));
+                    break; // 只取第一张表
+				}
+			}
+			canS.textContent = data.length;
+			olddata = [...data]
+			isfresh = true;
+		}
+	}
+
+	function handleFileSelect(event) {
+		const file = event.target.files[0];
+		receiveFile(file);
+	}
+
+	function handleDragOver(event) {
+		event.preventDefault();
+		const fileDropArea = document.getElementById('fileDropArea');
+		fileDropArea.classList.add('dragover');
+	}
+
+	function handleFileDrop(event) {
+		event.preventDefault();
+		const fileDropArea = document.getElementById('fileDropArea');
+		fileDropArea.classList.remove('dragover');
+		const file = event.dataTransfer.files[0];
+		receiveFile(file);
+	}
+
+	function handleDragLeave(event) {
+		const fileDropArea = document.getElementById('fileDropArea');
+		fileDropArea.classList.remove('dragover');
+	}
+
+
+// *********************随机选择
+let canClick = true;
+let randomIndex = 0;
+button.addEventListener('click', function() {
+	
+	if(!canClick) return;
+
+	if(data == [] || !data.some(item => '姓名' in item)){
+		alert("\t检查文件合法性\n1.只允许xlsx文件；\n2.文件不允许合并单元格；\n3.以“姓名”作为列首，单列呈现");
+		return;
+	}
+
+	isfresh = false;
+
+	var name = document.getElementById('name');
+
+	function select(){
+		randomIndex = Math.floor(Math.random() * data.length);
+		var randomPerson = data[randomIndex];
+		name.textContent = randomPerson['姓名'];
+	}
+
+    function stopRandomSelect() {
+		if(!canClick) return;
+		canClick = false;
+		clearInterval(timer);
+		name.classList.add('selected');
+		button.classList.remove('selected');
+		button.textContent = '开始';
+
+		if(sole){
+			data.splice(randomIndex, 1)
+		}
+
+		displaySelectedRecord(name.textContent)
+		canClick = true;
+    }
+	
+	if (button.textContent === '停止') {
+        stopRandomSelect();
+    } else{
+		name.classList.remove('selected');
+		button.classList.add('selected');
+		button.textContent = '停止';
+		speed = initialSpeed;
+		timer = setInterval(select, speed);
+	}
+
+
+});
+
+//#################历史
+var selectedRecords = document.getElementById('selected-records');
+
+var total = 0;
+
+function displaySelectedRecord(record) {
+	if(total%5==0){
+		var div = document.createElement('div');
+    	div.classList.add('index');
+		div.textContent = total/5 + 1;
+		selectedRecords.appendChild(div);
+	}
+	total++;
+    var div = document.createElement('div');
+    div.classList.add('history');
+    div.textContent = record;
+    selectedRecords.appendChild(div);
+	canS.textContent = data.length;
+	hasS.textContent = total;
+}
+
+</script>
+
+</html>
